@@ -10,32 +10,33 @@ Profile format:
 
 <session name>:
  - <window name>:
-    layout: <single|vsplit|hsplit|three|four>
-    panes:
-      - cwd: <...>
-        host: <...>
-        cmd:  <...>
-
-      - cwd: <...>
-        host: <...>
-        cmd: <...>
+      layout: <single|vsplit|hsplit|three|four>
+      panes:
+        - cwd: <...>
+          host: <...>
+          cmd:  <...>
+        - cwd: <...>
+          host: <...>
+          cmd:  <...>
+ - <window name>:
      ...
+<session name>:
+  ...
 
 If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
 previous pane will be used.
 
-The <window name> of a session can be translated into a icon using via the
+The <window name> of a session can be translated into e.g. an icon via the
 [--title-script] option: The script should define the method:
 
-def lookup_icon name
-    return ' ' if name == 'ruby'
+def title_translate name
+    ' ' if name == 'ruby'
     ...
 end
 
 ".freeze
 
 #==============================================================================#
-
 def die msg
     warn msg
     exit 1
@@ -45,32 +46,71 @@ def debug *args
     warn args if FLAGS[:debug]
 end
 
-def list_windows
-    out = ''
-    YAML.load_file(FLAGS[:conf]).each do |session_name, session|
-        session.each do |window_name, _|
-            out += " #{session_name}.#{window_name.keys.first}"
+# rubocop:disable Style/Documentation
+class TmuxWindow
+    attr_accessor :title, :layout, :panes
+
+    def initialize window_name, dict
+        @title      = title_translate window_name
+        @layout     = dict['layout']
+        @panes      = dict['panes']
+    end
+
+    # The tmux commands that should be ran before building the pane
+    # at `index` for the current @layout.
+    private def layout_cmd index
+        case @layout
+        when 'four'
+            'TODO'
+        when 'three'
+            'TODO'
+        when 'vsplit'
+            "  split-window -v \\; \\\n"
+        else
+            if panes.length > 1 # hsplit
+                "  split-window -h \\; \\\n"
+            else # single
+                ''
+            end
         end
     end
-    out.strip
+
+    def build
+        launch_str = ''
+
+        prev_pane = TmuxPane.new @panes[0]
+
+        # Fallback cwd should never be nil
+        prev_pane.cwd = Dir.home if prev_pane.cwd.nil?
+
+        launch_str += " -n '#{title}' \\; \\\n"
+
+        panes.each_with_index do |pane, i|
+            debug "  Pane: #{pane}"
+
+            tmux_pane = TmuxPane.new pane
+
+            # Use @host and @cwd from previous pane if unset
+            tmux_pane.update host: prev_pane.host, cwd: prev_pane.cwd
+
+            launch_str += layout_cmd i
+            launch_str += tmux_pane.build
+
+            prev_pane.host = tmux_pane.host unless tmux_pane.host.nil?
+            prev_pane.cwd  = tmux_pane.cwd  unless tmux_pane.cwd.nil?
+        end
+
+        launch_str
+    end
 end
 
 # rubocop:disable Style/Documentation
-class TmuxWindow
-    attr_accessor :layout, :panes
-
-    def initialize dict
-        @layout     = dict['layout']
-        @panes      = dict['panes'].map { |p| TmuxPane.new p }
-    end
-end
-
 class TmuxPane
     attr_accessor :host, :cwd
 
     def initialize dict
         @host     = dict['host']
-        # We should not expand '~' since commands could run in ssh
+        # We should NOT expand '~' since commands could run in ssh
         @cwd      = dict['cwd']
         @cmd      = dict['cmd']
     end
@@ -82,9 +122,6 @@ class TmuxPane
 
     def build
         cmd = ''
-        unless @vertical.nil?
-            cmd += "  split-window #{@vertical ? '-v' : '-h'} \\; \\\n"
-        end
         cmd += "  send-keys 'ssh #{@host}' Enter \\; \\\n" unless @host.nil?
         cmd += "  send-keys 'cd #{@cwd}; clear' Enter \\; \\\n"
         cmd += "  send-keys '#{@cmd}' Enter \\; \\\n" unless @cmd.nil?
@@ -115,7 +152,13 @@ parser = OptionParser.new do |opts|
         exit
     end
     opts.on('-l', '--list', 'List windows in the configuration') do |_|
-        puts list_windows
+        out = ''
+        YAML.load_file(FLAGS[:conf]).each do |session_name, session|
+            session.each do |window_name, _|
+                out += " #{session_name}.#{window_name.keys.first}"
+            end
+        end
+        out.strip
         exit
     end
     opts.on('-tSCRIPT', '--title-script=SCRIPT',
@@ -147,10 +190,10 @@ debug FLAGS
 
 require_relative FLAGS[:title_script] if File.readable? FLAGS[:title_script]
 
-unless defined? lookup_icon
+unless defined? title_translate
     # rubocop:disable Style/SingleLineMethods
     # rubocop:disable Style/MethodDefParentheses
-    def lookup_icon(name) name end
+    def title_translate(name) name end
 end
 
 launch_cmd = ''
@@ -182,31 +225,10 @@ profile.each do |session_name, session|
         next unless launch_all_in_session ||
                     launch_windows.include?(window_name)
 
-        panes = window[window_name]['panes']
+        tmux_window = TmuxWindow.new window_name, window[window_name]
 
-        prev_pane = TmuxPane.new panes[0]
-        # Fallback cwd should never be nil
-        prev_pane.cwd = Dir.home if prev_pane.cwd.nil?
-
-        title = lookup_icon window_name
-        title = window_name if title.nil?
-        # XXX: Blankspace after the title
         launch_cmd += 'new-window' unless launch_cmd.empty?
-        launch_cmd += " -n '#{title.strip} ' \\; \\\n"
-
-        panes.each do |pane|
-            debug "  Pane: #{pane}"
-
-            tmux_pane = TmuxPane.new pane
-
-            # Use @host and @cwd from previous pane if unset
-            tmux_pane.update host: prev_pane.host, cwd: prev_pane.cwd
-
-            launch_cmd += tmux_pane.build
-
-            prev_pane.host = tmux_pane.host unless tmux_pane.host.nil?
-            prev_pane.cwd  = tmux_pane.cwd  unless tmux_pane.cwd.nil?
-        end
+        launch_cmd += tmux_window.build
     end
 
     next if launch_cmd.empty?
@@ -226,7 +248,7 @@ launch_cmd = launch_cmds.join ''
 launch_cmd.strip!
 launch_cmd.delete_suffix! '\\; \\'
 
-debug '==================================='
+debug '-----------------------------------'
 debug launch_cmd
 
 unless FLAGS[:debug]
