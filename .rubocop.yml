@@ -1,0 +1,29 @@
+---
+# https://raw.githubusercontent.com/rubocop/rubocop/master/config/default.yml
+AllCops:
+  # System version on macOS
+  TargetRubyVersion: 2.6
+  NewCops: disable
+Style/FrozenStringLiteralComment:
+  Enabled: false
+Metrics/PerceivedComplexity:
+  Enabled: false
+
+Style/MethodDefParentheses:
+  Enabled: true
+  EnforcedStyle: require_no_parentheses_except_multiline
+
+Layout/IndentationStyle:
+  Enabled: true
+  EnforcedStyle: spaces
+
+# Allow $0 over $PROGRAMNAME
+Style/SpecialGlobalVars:
+  Enabled: false
+
+Layout/IndentationWidth:
+  Enabled: true
+  Width: 4
+
+Lint/MissingCopEnableDirective:
+  Enabled: false

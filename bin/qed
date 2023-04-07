@@ -1,0 +1,222 @@
+#!/usr/bin/env ruby
+require 'yaml'
+require 'optparse'
+
+#==============================================================================#
+USAGE = "---------------------
+Tmux launcher
+
+Profile format:
+---------------
+<session name>:
+ - <window name>:
+    layout: <single|vsplit|hsplit|three|four>
+    panes:
+      - cwd: <...>
+        host: <...>
+        cmd:  <...>
+
+      - cwd: <...>
+        host: <...>
+        cmd: <...>
+     ...
+
+If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
+previous pane will be used.
+
+Note that if a specific window is launched the HOST and CWD must be explicitly
+set.
+".freeze
+
+#==============================================================================#
+
+def die msg
+    warn msg
+    exit 1
+end
+
+def debug *args
+    warn args if FLAGS[:debug]
+end
+
+def list_windows
+    out = ''
+    YAML.load_file(FLAGS[:conf]).each do |session_name, session|
+        session.each do |window_name, _|
+            out += " #{session_name}.#{window_name.keys.first}"
+        end
+    end
+    out.strip
+end
+
+# rubocop:disable Style/Documentation
+class TmuxWindow
+    attr_accessor :layout, :panes
+
+    def initialize dict
+        @layout     = dict['layout']
+        @panes      = dict['panes'].map { |p| TmuxPane.new p; }
+    end
+
+end
+
+class TmuxPane
+    attr_accessor :host, :cwd
+
+    def initialize dict
+        @host     = dict['host']
+        # We should not expand '~' since commands could run in ssh
+        @cwd      = dict['cwd']
+        @cmd      = dict['cmd']
+    end
+
+    def update host:, cwd:
+        @host = host if @host.nil?
+        @cwd  = cwd if @cwd.nil?
+    end
+
+    def build
+        cmd = ''
+        unless @vertical.nil?
+            cmd += "  split-window #{@vertical ? '-v' : '-h'} \\; \\\n"
+        end
+        cmd += "  send-keys 'ssh #{@host}' Enter \\; \\\n" unless @host.nil?
+        cmd += "  send-keys 'cd #{@cwd}; clear' Enter \\; \\\n"
+        cmd += "  send-keys '#{@cmd}' Enter \\; \\\n" unless @cmd.nil?
+        cmd
+    end
+end
+
+#==============================================================================#
+
+# rubocop:disable Style/MutableConstant
+FLAGS = {
+    debug: false,
+    conf: "#{Dir.home}/.secret/profiles.yml",
+    title_to_icon: "#{Dir.home}/dots/tmux/title-to-icon.rb"
+}
+
+parser = OptionParser.new do |opts|
+    opts.banner = "usage: #{File.basename $0} [FLAGS] [sessions...]"
+    opts.on('-cCONFIG', '--config=CONFIG', 'YAML configuration file') do |t|
+        die "Failed to open: #{t}" unless File.readable? t
+        FLAGS[:conf] = t
+    end
+    opts.on('-d', '--debug', 'Show debug information') do |_|
+        FLAGS[:debug] = true
+    end
+    opts.on('-h', '--help', 'Show help and exit') do |_|
+        opts.display
+        exit
+    end
+    opts.on('-l', '--list', 'List windows in the configuration') do |_|
+        puts list_windows
+        exit
+    end
+    opts.on('-?', 'Show verbose help and exit') do |_|
+        opts.display
+        puts USAGE
+        exit
+    end
+end
+
+begin
+    parser.parse!
+rescue StandardError => e
+    puts e.message, parser.help
+    exit 1
+end
+
+if ARGV.empty?
+    puts parser.help
+    exit 1
+end
+
+#==============================================================================#
+if File.readable? FLAGS.title_to_icon
+    require_relative FLAGS.title_to_icon 
+else
+    def lookup_icon(name) return name end
+end
+
+launch_cmd = ''
+launch_cmds = []
+
+profile = YAML.load_file(FLAGS[:conf])
+
+# rubocop:disable Metrics/BlockLength
+profile.each do |session_name, session|
+    debug "Session: #{session_name}"
+
+    # If the session name appears by itself, launch all windows
+    launch_all_in_session = ARGV.include?(session_name) ||
+                            ARGV.include?("#{session_name}.")
+    launch_windows = []
+
+    unless launch_all_in_session
+        ARGV.each do |target|
+            launch_windows.push target.split('.').last if target.start_with? "#{session_name}."
+        end
+    end
+
+    launch_cmd = ''
+
+    session.each do |window|
+        window_name = window.keys.first
+        debug "Window: #{window_name}"
+
+        next unless launch_all_in_session ||
+                    launch_windows.include?(window_name)
+
+        panes = window[window_name]['panes']
+
+        prev_pane = TmuxPane.new panes[0]
+        # Fallback cwd should never be nil
+        prev_pane.cwd = Dir.home if prev_pane.cwd.nil?
+
+        title = lookup_icon window_name
+        title = window_name if title.nil?
+        # XXX: Blankspace after the title
+        launch_cmd += 'new-window' unless launch_cmd.empty?
+        launch_cmd += " -n '#{title.strip} ' \\; \\\n"
+
+        panes.each do |pane|
+            debug "  Pane: #{pane}"
+
+            tmux_pane = TmuxPane.new pane
+
+            # Use @host and @cwd from previous pane if unset
+            tmux_pane.update host: prev_pane.host, cwd: prev_pane.cwd
+
+            launch_cmd += tmux_pane.build
+
+            prev_pane.host = tmux_pane.host unless tmux_pane.host.nil?
+            prev_pane.cwd  = tmux_pane.cwd  unless tmux_pane.cwd.nil?
+        end
+    end
+
+    next if launch_cmd.empty?
+
+    launch_cmd = (if ENV['TMUX'].nil?
+                      "new-session -s #{session_name}"
+                  else
+                      'new-window'
+                  end) + launch_cmd
+
+    launch_cmds.push launch_cmd
+end
+
+die 'No launch commands' if launch_cmds.empty?
+
+launch_cmd = launch_cmds.join ''
+launch_cmd.strip!
+launch_cmd.delete_suffix! '\\; \\'
+
+debug '==================================='
+debug launch_cmd
+
+unless FLAGS[:debug]
+    `tmux #{launch_cmd}`
+    # Select first window if we launched a session
+    `tmux select-window -t 1` if ENV['TMUX'].nil?
+end
