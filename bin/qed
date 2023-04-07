@@ -11,7 +11,7 @@ Profile format:
 
 <session name>:
  - <window name>:
-      layout: <single|vsplit|hsplit|three|four>
+      [layout: <single|vsplit|hsplit|htree|three|four>]
       panes:
         - cwd: <...>
           host: <...>
@@ -27,12 +27,17 @@ Profile format:
 If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
 previous pane will be used.
 
+Default layout is vertical split (vsplit).
+
 The <window name> of a session can be translated into e.g. an icon via the
 [--title-script] option: The script should define the method:
 
 def title_translate name
-    ' ' if name == 'ruby'
+    case name
+    when /ruby|qed/
+        ' '
     ...
+    end
 end
 
 ".freeze
@@ -53,42 +58,64 @@ class TmuxWindow
 
     def initialize window_name, dict
         @title      = title_translate window_name
-        @layout     = dict['layout']
+        @layout     = if dict['layout'].nil?
+                          'vsplit'
+                      else
+                          dict['layout']
+                      end
         @panes      = dict['panes']
     end
 
-    # The tmux commands that should be ran before building the pane
+    # The tmux commands that should be ran BEFORE building the pane
     # at `index` for the current @layout.
+    # XXX:
+    #   tmux split-window -v:   like split in vim
+    #   tmux split-window -h:   like vsplit in vim
     def _layout_cmd index
+        return '' if index.zero?
+
         case @layout
         when /three|four/
             #  ______________
             # |   0  |   1   |
             # |------|-------|
-            # |   3  |   2   |
+            # |  (3) |   2   |
             #  --------------
             #
             case index
-            when 0
-                'tmux split-window -v  \\; \\\n'
             when 1
                 'tmux split-window -h  \\; \\\n'
+            when 2
+                'tmux split-window -v  \\; \\\n'
+            when 3
+                'tmux select-pane :.+ \\; \\\n
+                 tmux split-window -h  \\; \\\n'
+            end
+        when 'hthree'
+            #  ______________
+            # |   0  |   2   |
+            # |--------------|
+            # |      1       |
+            #  --------------
+            #
+            case index
+            when 1
+                'tmux split-window -v  \\; \\\n'
             when 2
                 'tmux select-pane :.+ \\; \\\n
                  tmux split-window -h  \\; \\\n'
             end
-        when 'vsplit'
-            "  split-window -v \\; \\\n"
-        else # single|hsplit
-            return "  split-window -h \\; \\\n" if panes.length > 1
-
+        when 'single'
             ''
+        when 'hsplit'
+            "  split-window -v \\; \\\n"
+        else # vsplit
+            "  split-window -h \\; \\\n"
         end
     end
 
     def build
         launch_str = ''
-
         prev_pane = TmuxPane.new @panes[0]
 
         # Fallback cwd should never be nil
