@@ -1,3 +1,4 @@
+---
 test:
   - single:
       layout: single
@@ -47,4 +48,3 @@ test:
           cmd: clear;figlet 0
         - cmd: clear;figlet 1
         - cmd: clear;figlet 2
-

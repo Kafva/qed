@@ -7,7 +7,7 @@ require 'optparse'
 USAGE = "---------------------
 Tmux session manager
 
-Profile format:
+* Profile format:
 
 <session name>:
  - <window name>:
@@ -24,13 +24,13 @@ Profile format:
 <session name>:
   ...
 
-If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
-previous pane will be used.
+* If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
+  previous pane will be used.
 
-Default layout is vertical split (vsplit).
+* Default layout is vertical split (vsplit).
 
-The <window name> of a session can be translated into e.g. an icon via the
-[--title-script] option: The script should define the method:
+* The <window name> of a session can be translated into e.g. an icon via the
+  [--title-script] option: The script should define the method:
 
 def title_translate name
     case name
@@ -193,7 +193,7 @@ end
 FLAGS = {
     debug: false,
     conf: "#{Dir.home}/.secret/profiles.yml",
-    title_script: "#{Dir.home}/dots/tmux/scripts/title-to-icon.rb"
+    title_script: "#{Dir.home}/dots/tmux/scripts/qed-translate-title.rb"
 }
 
 parser = OptionParser.new do |opts|
@@ -216,7 +216,7 @@ parser = OptionParser.new do |opts|
                 out += " #{session_name}.#{window_name.keys.first}"
             end
         end
-        out.strip
+        puts out.strip
         exit
     end
     opts.on('-tSCRIPT', '--title-script=SCRIPT',
