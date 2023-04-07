@@ -1,4 +1,16 @@
 test:
+  - single:
+      layout: single
+      panes:
+        - cwd: /tmp
+
+  - hsplit:
+      layout: hsplit
+      panes:
+        - cwd: /tmp
+          cmd: clear;figlet 0
+        - cmd: clear;figlet 1
+
   - four:
       layout: four
       panes:
@@ -7,6 +19,13 @@ test:
         - cmd: clear;figlet 1
         - cmd: clear;figlet 2
         - cmd: clear;figlet 3
+
+  - four_fill:
+      layout: four
+      panes:
+        - cwd: ~/Downloads
+          cmd: clear;figlet 0
+
   - three:
       layout: three
       panes:
@@ -14,6 +33,13 @@ test:
           cmd: clear;figlet 0
         - cmd: clear;figlet 1
         - cmd: clear;figlet 2
+
+  - three_fill:
+      layout: three
+      panes:
+        - cwd: ~/Downloads
+          cmd: clear;figlet 0
+
   - hthree:
       layout: hthree
       panes:

@@ -281,6 +281,9 @@ profile.each do |session_name, session|
 
         next unless launch_all_in_session ||
                     launch_windows.include?(window_name)
+        
+        die "#{FLAGS[:conf]}: missing key(s) for '#{session_name}.#{window_name}' " + 
+            "(incorrect indentation?)" if window[window_name].nil?
 
         tmux_window = TmuxWindow.new window_name, window[window_name]
 
