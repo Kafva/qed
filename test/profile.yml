@@ -1,0 +1,24 @@
+test:
+  - four:
+      layout: four
+      panes:
+        - cwd: ~/Downloads
+          cmd: clear;figlet 0
+        - cmd: clear;figlet 1
+        - cmd: clear;figlet 2
+        - cmd: clear;figlet 3
+  - three:
+      layout: three
+      panes:
+        - cwd: ~/Downloads
+          cmd: clear;figlet 0
+        - cmd: clear;figlet 1
+        - cmd: clear;figlet 2
+  - hthree:
+      layout: hthree
+      panes:
+        - cwd: ~/Downloads
+          cmd: clear;figlet 0
+        - cmd: clear;figlet 1
+        - cmd: clear;figlet 2
+

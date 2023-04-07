@@ -58,6 +58,7 @@ class TmuxWindow
 
     def initialize window_name, dict
         @title      = title_translate window_name
+        @title      = window_name if @title.nil?
         @layout     = if dict['layout'].nil?
                           'vsplit'
                       else
@@ -69,13 +70,13 @@ class TmuxWindow
     # The tmux commands that should be ran BEFORE building the pane
     # at `index` for the current @layout.
     # XXX:
-    #   tmux split-window -v:   like split in vim
-    #   tmux split-window -h:   like vsplit in vim
+    #   tmux split-window -v:   like 'split' in vim
+    #   tmux split-window -h:   like 'vsplit' in vim
     def _layout_cmd index
         return '' if index.zero?
 
         case @layout
-        when /three|four/
+        when /^three|four$/
             #  ______________
             # |   0  |   1   |
             # |------|-------|
@@ -84,12 +85,12 @@ class TmuxWindow
             #
             case index
             when 1
-                'tmux split-window -h  \\; \\\n'
+                " split-window -h  \\; \\\n"
             when 2
-                'tmux split-window -v  \\; \\\n'
+                " split-window -v  \\; \\\n"
             when 3
-                'tmux select-pane :.+ \\; \\\n
-                 tmux split-window -h  \\; \\\n'
+                " select-pane -t :.+ \\; \\\n" +
+                " split-window -v  \\; \\\n"
             end
         when 'hthree'
             #  ______________
@@ -100,10 +101,10 @@ class TmuxWindow
             #
             case index
             when 1
-                'tmux split-window -v  \\; \\\n'
+                " split-window -v  \\; \\\n"
             when 2
-                'tmux select-pane :.+ \\; \\\n
-                 tmux split-window -h  \\; \\\n'
+                " select-pane -t :.+ \\; \\\n" +
+                " split-window -h  \\; \\\n"
             end
         when 'single'
             ''
@@ -114,12 +115,32 @@ class TmuxWindow
         end
     end
 
+    def _filled
+        case @layout
+        when 'four'
+            @panes.length >= 4
+        when /^three|hthree$/
+            @panes.length >= 3
+        when 'single'
+            @panes.length >= 1
+        else # vsplit|hsplit
+            @panes.length >= 2
+        end
+    end
+
     def build
         launch_str = ''
         prev_pane = TmuxPane.new @panes[0]
 
         # Fallback cwd should never be nil
         prev_pane.cwd = Dir.home if prev_pane.cwd.nil?
+
+        # Add trailing panes if the layout has not been filled
+        # inside of the configuration file.
+        fill_pane = { cwd: prev_pane.cwd }
+        until _filled
+            @panes.append fill_pane
+        end
 
         launch_str += " -n '#{title}' \\; \\\n"
 
@@ -238,7 +259,6 @@ launch_cmds = []
 
 profile = YAML.load_file(FLAGS[:conf])
 
-# rubocop:disable Metrics/BlockLength
 profile.each do |session_name, session|
     debug "Session: #{session_name}"
 

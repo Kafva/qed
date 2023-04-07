@@ -1,4 +1,3 @@
-/test.yml
 *.gem
 zig-cache
 zig-out
