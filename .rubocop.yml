@@ -27,3 +27,10 @@ Layout/IndentationWidth:
 
 Lint/MissingCopEnableDirective:
   Enabled: false
+
+
+Metrics/MethodLength:
+  Enabled: false
+Metrics/AbcSize:
+  Enabled: false
+

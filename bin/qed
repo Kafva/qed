@@ -3,6 +3,7 @@ require 'yaml'
 require 'optparse'
 
 #==============================================================================#
+
 USAGE = "---------------------
 Tmux session manager
 
@@ -58,20 +59,30 @@ class TmuxWindow
 
     # The tmux commands that should be ran before building the pane
     # at `index` for the current @layout.
-    private def layout_cmd index
+    def _layout_cmd index
         case @layout
-        when 'four'
-            'TODO'
-        when 'three'
-            'TODO'
+        when /three|four/
+            #  ______________
+            # |   0  |   1   |
+            # |------|-------|
+            # |   3  |   2   |
+            #  --------------
+            #
+            case index
+            when 0
+                'tmux split-window -v  \\; \\\n'
+            when 1
+                'tmux split-window -h  \\; \\\n'
+            when 2
+                'tmux select-pane :.+ \\; \\\n
+                 tmux split-window -h  \\; \\\n'
+            end
         when 'vsplit'
             "  split-window -v \\; \\\n"
-        else
-            if panes.length > 1 # hsplit
-                "  split-window -h \\; \\\n"
-            else # single
-                ''
-            end
+        else # single|hsplit
+            return "  split-window -h \\; \\\n" if panes.length > 1
+
+            ''
         end
     end
 
@@ -93,7 +104,7 @@ class TmuxWindow
             # Use @host and @cwd from previous pane if unset
             tmux_pane.update host: prev_pane.host, cwd: prev_pane.cwd
 
-            launch_str += layout_cmd i
+            launch_str += _layout_cmd i
             launch_str += tmux_pane.build
 
             prev_pane.host = tmux_pane.host unless tmux_pane.host.nil?
@@ -104,7 +115,6 @@ class TmuxWindow
     end
 end
 
-# rubocop:disable Style/Documentation
 class TmuxPane
     attr_accessor :host, :cwd
 
