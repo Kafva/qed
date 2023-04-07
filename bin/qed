@@ -4,10 +4,10 @@ require 'optparse'
 
 #==============================================================================#
 USAGE = "---------------------
-Tmux launcher
+Tmux session manager
 
 Profile format:
----------------
+
 <session name>:
  - <window name>:
     layout: <single|vsplit|hsplit|three|four>
@@ -24,8 +24,14 @@ Profile format:
 If the 'host' or 'cwd' arguments are omitted for a pane, the values from the
 previous pane will be used.
 
-Note that if a specific window is launched the HOST and CWD must be explicitly
-set.
+The <window name> of a session can be translated into a icon using via the
+[--title-script] option: The script should define the method:
+
+def lookup_icon name
+    return ' ' if name == 'ruby'
+    ...
+end
+
 ".freeze
 
 #==============================================================================#
@@ -55,9 +61,8 @@ class TmuxWindow
 
     def initialize dict
         @layout     = dict['layout']
-        @panes      = dict['panes'].map { |p| TmuxPane.new p; }
+        @panes      = dict['panes'].map { |p| TmuxPane.new p }
     end
-
 end
 
 class TmuxPane
@@ -93,7 +98,7 @@ end
 FLAGS = {
     debug: false,
     conf: "#{Dir.home}/.secret/profiles.yml",
-    title_to_icon: "#{Dir.home}/dots/tmux/title-to-icon.rb"
+    title_script: "#{Dir.home}/dots/tmux/scripts/title-to-icon.rb"
 }
 
 parser = OptionParser.new do |opts|
@@ -112,6 +117,10 @@ parser = OptionParser.new do |opts|
     opts.on('-l', '--list', 'List windows in the configuration') do |_|
         puts list_windows
         exit
+    end
+    opts.on('-tSCRIPT', '--title-script=SCRIPT',
+            'Script to use for custom window name translations') do |t|
+        FLAGS[:title_script] = t
     end
     opts.on('-?', 'Show verbose help and exit') do |_|
         opts.display
@@ -132,11 +141,16 @@ if ARGV.empty?
     exit 1
 end
 
+debug FLAGS
+
 #==============================================================================#
-if File.readable? FLAGS.title_to_icon
-    require_relative FLAGS.title_to_icon 
-else
-    def lookup_icon(name) return name end
+
+require_relative FLAGS[:title_script] if File.readable? FLAGS[:title_script]
+
+unless defined? lookup_icon
+    # rubocop:disable Style/SingleLineMethods
+    # rubocop:disable Style/MethodDefParentheses
+    def lookup_icon(name) name end
 end
 
 launch_cmd = ''
