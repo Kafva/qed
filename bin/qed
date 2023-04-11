@@ -34,7 +34,7 @@ Tmux session manager
 
 def title_translate name
     case name
-    when /ruby|qed/
+    when /^(ruby|qed)$/
         ' '
     ...
     end
