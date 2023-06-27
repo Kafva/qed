@@ -37,3 +37,5 @@ Metrics/CyclomaticComplexity:
   Enabled: false
 Metrics/BlockLength:
   Enabled: false
+Style/ConditionalAssignment:
+  Enabled: false

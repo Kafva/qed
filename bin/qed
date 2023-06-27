@@ -89,8 +89,8 @@ class TmuxWindow
             when 2
                 " split-window -v  \\; \\\n"
             when 3
-                " select-pane -t :.+ \\; \\\n" +
-                " split-window -v  \\; \\\n"
+                " select-pane -t :.+ \\; \\\n" \
+                    " split-window -v  \\; \\\n"
             end
         when 'hthree'
             #  ______________
@@ -103,8 +103,8 @@ class TmuxWindow
             when 1
                 " split-window -v  \\; \\\n"
             when 2
-                " select-pane -t :.+ \\; \\\n" +
-                " split-window -h  \\; \\\n"
+                " select-pane -t :.+ \\; \\\n" \
+                    " split-window -h  \\; \\\n"
             end
         when 'single'
             ''
@@ -138,9 +138,7 @@ class TmuxWindow
         # Add trailing panes if the layout has not been filled
         # inside of the configuration file.
         fill_pane = { cwd: prev_pane.cwd }
-        until _filled
-            @panes.append fill_pane
-        end
+        @panes.append fill_pane until _filled
 
         launch_str += " -n '#{title}' \\; \\\n"
 
@@ -281,9 +279,11 @@ profile.each do |session_name, session|
 
         next unless launch_all_in_session ||
                     launch_windows.include?(window_name)
-        
-        die "#{FLAGS[:conf]}: missing key(s) for '#{session_name}.#{window_name}' " + 
-            "(incorrect indentation?)" if window[window_name].nil?
+
+        if window[window_name].nil?
+            die "#{FLAGS[:conf]}: missing key(s) for '#{session_name}.#{window_name}' " \
+                '(incorrect indentation?)'
+        end
 
         tmux_window = TmuxWindow.new window_name, window[window_name]
 
