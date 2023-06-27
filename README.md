@@ -1,8 +1,7 @@
 # qed
-Tmux session manager, only requirement is Ruby >= 2.6:
+Tmux session manager
 
 ```bash
-gem build qed.gemspec && gem install *.gem &&
-    qed -h
+bin/qed -h
 ```
 
